@@ -1,38 +1,43 @@
 import json
-
+import boto3
+import pandas as pd
+import io
 # import requests
 
 
 def lambda_handler(event, context):
-    """Sample pure Lambda function
+    # ----------- CONFIG -----------
+    source_bucket = 'batch-sudheer'
+    source_key = 'landing_zone/sales_data.csv'
 
-    Parameters
-    ----------
-    event: dict, required
-        API Gateway Lambda Proxy Input Format
+    destination_bucket = 'batch-sudheer'
+    destination_key = 'derived_zone/transformed_file.csv'
 
-        Event doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html#api-gateway-simple-proxy-for-lambda-input-format
+    # ----------- INIT CLIENT -----------
+    s3_client = boto3.client('s3')
 
-    context: object, required
-        Lambda Context runtime methods and attributes
+    # ----------- READ FROM S3 -----------
+    response = s3_client.get_object(Bucket=source_bucket, Key=source_key)
+    csv_content = response['Body'].read().decode('utf-8')
 
-        Context doc: https://docs.aws.amazon.com/lambda/latest/dg/python-context-object.html
+    # Load into pandas DataFrame
+    df = pd.read_csv(io.StringIO(csv_content))
 
-    Returns
-    ------
-    API Gateway Lambda Proxy Output Format: dict
+    # ----------- TRANSFORM DATA -----------
+    # Example: Keep only selected columns
+    # df = df[['employee_id', 'name', 'status']]
 
-        Return doc: https://docs.aws.amazon.com/apigateway/latest/developerguide/set-up-lambda-proxy-integrations.html
-    """
+    # ----------- UPLOAD TO DESTINATION S3 -----------
+    csv_buffer = io.StringIO()
+    df.to_csv(csv_buffer, index=False)
 
-    # try:
-    #     ip = requests.get("http://checkip.amazonaws.com/")
-    # except requests.RequestException as e:
-    #     # Send some context about this error to Lambda Logs
-    #     print(e)
+    s3_client.put_object(
+        Bucket=destination_bucket,
+        Key=destination_key,
+        Body=csv_buffer.getvalue()
+    )
 
-    #     raise e
-
+    print(f"✅ Transformed CSV uploaded to {destination_bucket}/{destination_key}")
     return {
         "statusCode": 200,
         "body": json.dumps({
